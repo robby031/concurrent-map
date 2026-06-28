@@ -5,16 +5,16 @@
 
 A high-performance, thread-safe generic map for Go. Originally derived from [orcaman/concurrent-map](https://github.com/orcaman/concurrent-map), now extensively redesigned with a modern sync.Map-style API, AxHash, and an optimized sharded architecture.
 
-## What changed from the original
+## What's different from the original
 
-| Area | Original (orcaman) | This fork |
+| Area | Original (orcaman) | This project |
 |---|---|---|
-| API | `Set`/`Get`/`Remove`/`Items`/`Keys` | `Store`/`Load`/`Delete`/`LoadOrStore`/`LoadAndDelete`/`Range` - aligned to `sync.Map` |
-| Hash function | FNV-1 (had XOR/multiply ordering bug) | axhash - custom folded-multiply algorithm |
-| Shard selection | `% SHARD_COUNT` (integer division) | `& shardMask` (bitwise AND, power-of-2 enforced) |
+| API | `Set` / `Get` / `Remove` / `Items` / `Keys` | `Store` / `Load` / `Delete` / `LoadOrStore` / `LoadAndDelete` / `Range` - aligned with `sync.Map` |
+| Hash function | FNV-1 | AxHash - optimized folded-multiply hashing |
+| Shard selection | `% SHARD_COUNT` | `& shardMask` (power-of-two optimized) |
 | Read path | `sync.RWMutex` on every read | Lock-free fast path via `atomic.Pointer` snapshot |
-| False sharing | No protection | 64-byte cache-line padding per shard |
-| Full scan | Sequential with lock held | `ParallelRange` - one goroutine per shard |
+| False sharing | None | 64-byte cache-line padding per shard |
+| Full scan | Sequential | `ParallelRange` (parallel shard traversal) |
 | Generics | No | Yes - `ConcurrentMap[K, V]` |
 
 ## Install
