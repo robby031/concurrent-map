@@ -2,7 +2,6 @@ package cmap
 
 import (
 	"encoding/json"
-	"hash/fnv"
 	"sort"
 	"strconv"
 	"testing"
@@ -235,15 +234,34 @@ func TestJsonMarshal(t *testing.T) {
 	}
 }
 
-func TestFnv32(t *testing.T) {
-	key := []byte("ABC")
-
-	hasher := fnv.New32a()
-	_, err := hasher.Write(key)
-	if err != nil {
-		t.Errorf("%s", err.Error())
+func TestAxhash(t *testing.T) {
+	// Determinism: same input must always produce the same output.
+	for _, key := range []string{"", "a", "hello", "concurrent-map", "0123456789abcdef", "longer-key-that-exceeds-16-bytes"} {
+		h1 := axhash(key)
+		h2 := axhash(key)
+		if h1 != h2 {
+			t.Errorf("axhash(%q) not deterministic: %d vs %d", key, h1, h2)
+		}
 	}
-	if fnv32(string(key)) != hasher.Sum32() {
-		t.Errorf("Bundled fnv32 produced %d, expected result from hash/fnv32a is %d", fnv32(string(key)), hasher.Sum32())
+
+	// Basic collision resistance: 1000 distinct keys must not collide.
+	seen := make(map[uint32]string)
+	for i := 0; i < 1000; i++ {
+		key := strconv.Itoa(i)
+		h := axhash(key)
+		if prev, ok := seen[h]; ok {
+			t.Errorf("axhash collision: %q and %q both hash to %d", prev, key, h)
+			break
+		}
+		seen[h] = key
+	}
+
+	// Boundary sanity: every length 0–256 must not panic.
+	buf := make([]byte, 256)
+	for i := range buf {
+		buf[i] = byte(i)
+	}
+	for n := 0; n <= 256; n++ {
+		_ = axhash(string(buf[:n]))
 	}
 }
