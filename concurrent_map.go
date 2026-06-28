@@ -155,11 +155,36 @@ func (m ConcurrentMap[K, V]) Clear() {
 }
 
 func (m ConcurrentMap[K, V]) MarshalJSON() ([]byte, error) {
-	tmp := make(map[K]V)
-	m.Range(func(key K, value V) bool {
-		tmp[key] = value
-		return true
-	})
+	// Collect each shard's items in parallel to avoid sequential lock acquisition.
+	snapshots := make([]map[K]V, m.shardCount)
+	var wg sync.WaitGroup
+	wg.Add(int(m.shardCount))
+	for i, shard := range m.shards {
+		i, shard := i, shard
+		go func() {
+			defer wg.Done()
+			shard.RLock()
+			local := make(map[K]V, len(shard.items))
+			for k, v := range shard.items {
+				local[k] = v
+			}
+			shard.RUnlock()
+			snapshots[i] = local
+		}()
+	}
+	wg.Wait()
+
+	// Merge into a single map (no lock needed — all goroutines have finished).
+	total := 0
+	for _, s := range snapshots {
+		total += len(s)
+	}
+	tmp := make(map[K]V, total)
+	for _, s := range snapshots {
+		for k, v := range s {
+			tmp[k] = v
+		}
+	}
 	return json.Marshal(tmp)
 }
 
