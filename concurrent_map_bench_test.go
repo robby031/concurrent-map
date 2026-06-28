@@ -22,6 +22,17 @@ func BenchmarkRange(b *testing.B) {
 	}
 }
 
+func BenchmarkParallelRange(b *testing.B) {
+	m := New[Animal]()
+	for i := 0; i < 10000; i++ {
+		m.Store(strconv.Itoa(i), Animal{strconv.Itoa(i)})
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		m.ParallelRange(func(_ string, _ Animal) {})
+	}
+}
+
 func BenchmarkRangeInteger(b *testing.B) {
 	m := NewStringer[Integer, Animal]()
 	for i := 0; i < 10000; i++ {
