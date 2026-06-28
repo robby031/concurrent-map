@@ -238,12 +238,12 @@ func TestJsonMarshal(t *testing.T) {
 func TestFnv32(t *testing.T) {
 	key := []byte("ABC")
 
-	hasher := fnv.New32()
+	hasher := fnv.New32a()
 	_, err := hasher.Write(key)
 	if err != nil {
 		t.Errorf("%s", err.Error())
 	}
 	if fnv32(string(key)) != hasher.Sum32() {
-		t.Errorf("Bundled fnv32 produced %d, expected result from hash/fnv32 is %d", fnv32(string(key)), hasher.Sum32())
+		t.Errorf("Bundled fnv32 produced %d, expected result from hash/fnv32a is %d", fnv32(string(key)), hasher.Sum32())
 	}
 }
