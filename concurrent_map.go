@@ -15,21 +15,32 @@ type Stringer interface {
 
 // ConcurrentMap is a thread-safe map partitioned into shards to reduce lock contention.
 type ConcurrentMap[K comparable, V any] struct {
-	shards   []*ConcurrentMapShared[K, V]
-	sharding func(key K) uint32
+	shards     []*ConcurrentMapShared[K, V]
+	sharding   func(key K) uint32
+	shardCount uint32
+	shardMask  uint32
 }
 
 type ConcurrentMapShared[K comparable, V any] struct {
 	items map[K]V
 	sync.RWMutex
+	// pad to 64 bytes (one cache line) to prevent false sharing between adjacent shards.
+	// map header = 8 bytes, RWMutex = 24 bytes → 32 bytes padding needed.
+	_ [32]byte
 }
 
 func create[K comparable, V any](sharding func(key K) uint32) ConcurrentMap[K, V] {
-	m := ConcurrentMap[K, V]{
-		sharding: sharding,
-		shards:   make([]*ConcurrentMapShared[K, V], SHARD_COUNT),
+	sc := SHARD_COUNT
+	if sc <= 0 || (sc&(sc-1)) != 0 {
+		panic("cmap: SHARD_COUNT must be a positive power of 2")
 	}
-	for i := 0; i < SHARD_COUNT; i++ {
+	m := ConcurrentMap[K, V]{
+		sharding:   sharding,
+		shards:     make([]*ConcurrentMapShared[K, V], sc),
+		shardCount: uint32(sc),
+		shardMask:  uint32(sc - 1),
+	}
+	for i := 0; i < sc; i++ {
 		m.shards[i] = &ConcurrentMapShared[K, V]{items: make(map[K]V)}
 	}
 	return m
@@ -48,7 +59,7 @@ func NewWithCustomShardingFunction[K comparable, V any](sharding func(key K) uin
 }
 
 func (m ConcurrentMap[K, V]) getShard(key K) *ConcurrentMapShared[K, V] {
-	return m.shards[uint(m.sharding(key))%uint(SHARD_COUNT)]
+	return m.shards[m.sharding(key)&m.shardMask]
 }
 
 // Store sets the value for a key.
@@ -125,7 +136,7 @@ func (m ConcurrentMap[K, V]) Range(f func(key K, value V) bool) {
 // Count returns the number of elements within the map.
 func (m ConcurrentMap[K, V]) Count() int {
 	count := 0
-	for i := 0; i < SHARD_COUNT; i++ {
+	for i := uint32(0); i < m.shardCount; i++ {
 		shard := m.shards[i]
 		shard.RLock()
 		count += len(shard.items)
@@ -170,10 +181,9 @@ func strfnv32[K fmt.Stringer](key K) uint32 {
 func fnv32(key string) uint32 {
 	hash := uint32(2166136261)
 	const prime32 = uint32(16777619)
-	keyLength := len(key)
-	for i := 0; i < keyLength; i++ {
-		hash *= prime32
+	for i := 0; i < len(key); i++ {
 		hash ^= uint32(key[i])
+		hash *= prime32
 	}
 	return hash
 }
