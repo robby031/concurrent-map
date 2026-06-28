@@ -3,7 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/robby031/concurrent-map.svg)](https://pkg.go.dev/github.com/robby031/concurrent-map)
 [![Go Report Card](https://goreportcard.com/badge/github.com/robby031/concurrent-map)](https://goreportcard.com/report/github.com/robby031/concurrent-map)
 
-A high-performance, thread-safe generic map for Go. Forked from [orcaman/concurrent-map](https://github.com/orcaman/concurrent-map) and modernized with a lock-free read path, cache-line padding, and a `sync.Map`-style API.
+A high-performance, thread-safe generic map for Go. Originally derived from [orcaman/concurrent-map](https://github.com/orcaman/concurrent-map), now extensively redesigned with a modern sync.Map-style API, AxHash, and an optimized sharded architecture.
 
 ## What changed from the original
 
